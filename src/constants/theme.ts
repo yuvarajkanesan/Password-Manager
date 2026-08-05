@@ -74,3 +74,11 @@ export function elevation(color: string, level: 'sm' | 'md' | 'lg' = 'md') {
 }
 
 export const RADIUS = { sm: 8, md: 14, lg: 20, xl: 28, pill: 999 };
+
+// Applied as { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' } to
+// scrollable/form content (not full-bleed headers/backgrounds). Below this width it's a
+// no-op — every phone screen is already narrower — so it only ever engages on tablets
+// and other large/wide viewports, keeping content readable instead of stretching
+// edge-to-edge.
+export const CONTENT_MAX_WIDTH = 560;
+export const contentBounds = { width: '100%' as const, maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' as const };

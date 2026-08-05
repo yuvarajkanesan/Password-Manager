@@ -1,10 +1,20 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, ReactNode } from 'react';
 import type { VaultEntry, CardEntry, VaultData, EncryptedBlob } from '../types/vault';
 import { deriveKey, generateSalt, encryptVault, decryptVault, WrongPasswordError, PBKDF2_ITERATIONS } from '../crypto/vaultCrypto';
-import { saveEncryptedBlob, loadEncryptedBlob, hasVault, wipeVault } from '../storage/vaultStorage';
+import {
+  saveEncryptedBlob,
+  loadEncryptedBlob,
+  hasVault,
+  wipeVault,
+  getBiometricEnabled,
+  getAutoBackupEnabled,
+  getAutoBackupIntervalDays,
+  getLastAutoBackupAt,
+  setLastAutoBackupAt,
+} from '../storage/vaultStorage';
 import { storeBiometricPassword, clearBiometricPassword } from '../storage/biometricStore';
 import { setBiometricEnabled as persistBiometricEnabled } from '../storage/vaultStorage';
-import { exportBackupBlob, importBackupBlob } from '../utils/backup';
+import { exportBackupBlob, importBackupBlob, writeAutoBackupBlob } from '../utils/backup';
 
 export type VaultState = 'loading' | 'no-vault' | 'locked' | 'unlocked';
 
@@ -69,6 +79,27 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     setState('unlocked');
   }, []);
 
+  // Runs at most once per unlock, and only if it's actually due — cheap enough to call
+  // unconditionally on every unlock rather than needing a real background scheduler.
+  // Deliberately fire-and-forget from the caller: a backup failing should never
+  // interrupt someone trying to open their vault.
+  const maybeRunAutoBackup = useCallback(async () => {
+    try {
+      const enabled = await getAutoBackupEnabled();
+      if (!enabled) return;
+      const [lastRun, intervalDays] = await Promise.all([getLastAutoBackupAt(), getAutoBackupIntervalDays()]);
+      const dueAt = lastRun + intervalDays * 24 * 60 * 60 * 1000;
+      if (Date.now() < dueAt) return;
+
+      const blob = await loadEncryptedBlob();
+      if (!blob) return;
+      await writeAutoBackupBlob(blob);
+      await setLastAutoBackupAt(Date.now());
+    } catch {
+      // Silent — will simply retry on the next unlock.
+    }
+  }, []);
+
   const unlockWithBlob = useCallback(async (masterPassword: string, blob: EncryptedBlob) => {
     const key = await deriveKey(masterPassword, blob.salt, blob.iterations);
     try {
@@ -80,12 +111,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       setEntries(normalized.entries);
       setCards(normalized.cards);
       setState('unlocked');
+      maybeRunAutoBackup();
       return true;
     } catch (e) {
       if (e instanceof WrongPasswordError) return false;
       throw e;
     }
-  }, []);
+  }, [maybeRunAutoBackup]);
 
   const unlock = useCallback(async (masterPassword: string) => {
     const blob = await loadEncryptedBlob();
@@ -169,6 +201,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     dataRef.current = data;
     setEntries(data.entries);
     setCards(data.cards);
+
+    // Biometric unlock stores the master password itself (see enableBiometricUnlock) —
+    // if it's on, it needs refreshing too, otherwise it keeps handing back the old
+    // password, which now fails against the freshly re-encrypted vault.
+    if (await getBiometricEnabled()) {
+      await storeBiometricPassword(newPassword);
+    }
+
     return true;
   }, []);
 

@@ -10,7 +10,7 @@ import CardVisual from '../components/CardVisual';
 import CardScanScreen from './CardScanScreen';
 import { formatCardNumberInput } from '../utils/cardUtils';
 import type { CardOcrResult } from '../utils/cardOcr';
-import { RADIUS } from '../constants/theme';
+import { RADIUS, contentBounds } from '../constants/theme';
 import type { CardEntry, CardNetwork } from '../types/vault';
 
 const NETWORKS: CardNetwork[] = ['Visa', 'Mastercard', 'RuPay', 'Amex', 'Other'];
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 16.5, fontWeight: '800' },
-  content: { padding: 20, paddingBottom: 50 },
+  content: { padding: 20, paddingBottom: 50, ...contentBounds },
   previewWrap: { marginBottom: 14 },
   scanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 12, borderRadius: RADIUS.md, marginBottom: 20 },
   scanText: { fontSize: 13.5, fontWeight: '700' },

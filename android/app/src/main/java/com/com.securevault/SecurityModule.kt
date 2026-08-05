@@ -62,9 +62,12 @@ class SecurityModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
   // attached and no live USB-debugging bridge to it — any of those on a *release*
   // build points at a repackaged/tampered APK rather than a normal user device.
   // Always false in debug builds so this never gets in the way of development.
+  // Also gated behind ENFORCE_DEBUG_CHECK (see gradle.properties) so a release build
+  // can be installed and tested over adb without the app immediately refusing to run —
+  // that flag MUST be back to true before any real production release.
   @ReactMethod
   fun isDebuggingEnabled(promise: Promise) {
-    if (BuildConfig.DEBUG) {
+    if (BuildConfig.DEBUG || !BuildConfig.ENFORCE_DEBUG_CHECK) {
       promise.resolve(false)
       return
     }

@@ -8,7 +8,7 @@ import Button from '../components/Button';
 import StrengthMeter from '../components/StrengthMeter';
 import { generatePassword, GeneratorOptions } from '../utils/passwordUtils';
 import { copyWithAutoClear } from '../utils/clipboard';
-import { RADIUS, elevation } from '../constants/theme';
+import { RADIUS, elevation, contentBounds } from '../constants/theme';
 
 const MIN_LENGTH = 8;
 const MAX_LENGTH = 32;
@@ -56,8 +56,10 @@ export default function GeneratorScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient colors={colors.headerGradient} style={[styles.hero, { paddingTop: insets.top + 18 }]}>
-        <Text style={styles.heroTitle}>Password Generator</Text>
-        <Text style={styles.heroSubtitle}>Create a strong, unique password</Text>
+        <View style={contentBounds}>
+          <Text style={styles.heroTitle}>Password Generator</Text>
+          <Text style={styles.heroSubtitle}>Create a strong, unique password</Text>
+        </View>
       </LinearGradient>
 
       <View style={styles.body}>
@@ -121,7 +123,7 @@ const styles = StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingBottom: 26, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   heroTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
   heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
-  body: { flex: 1, padding: 20, marginTop: -12 },
+  body: { flex: 1, padding: 20, marginTop: -12, ...contentBounds },
   passwordCard: { borderRadius: RADIUS.lg, padding: 18, flexDirection: 'row', alignItems: 'center' },
   passwordText: { flex: 1, fontSize: 19, fontWeight: '700', letterSpacing: 0.5, fontFamily: 'monospace' },
   passwordActions: { flexDirection: 'row', gap: 6 },

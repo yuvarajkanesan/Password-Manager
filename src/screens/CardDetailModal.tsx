@@ -6,8 +6,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useVault } from '../contexts/VaultContext';
 import CardVisual from '../components/CardVisual';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ExpandableText from '../components/ExpandableText';
 import { copyWithAutoClear, copyPlain } from '../utils/clipboard';
-import { RADIUS, elevation } from '../constants/theme';
+import { RADIUS, elevation, contentBounds } from '../constants/theme';
 import type { CardEntry } from '../types/vault';
 
 type CardDetailModalProps = {
@@ -79,9 +80,11 @@ export default function CardDetailModal({ visible, card, onClose, onEdit }: Card
             {card.notes ? (
               <View style={styles.fieldBlock}>
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Notes</Text>
-                <Text style={[styles.notes, { color: colors.text, backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
-                  {card.notes}
-                </Text>
+                <ExpandableText
+                  text={card.notes}
+                  boxStyle={[styles.notes, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                  textStyle={{ color: colors.text, fontSize: 14, lineHeight: 20 }}
+                />
               </View>
             ) : null}
 
@@ -152,7 +155,7 @@ function FieldRow({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, maxHeight: '90%', paddingTop: 10 },
+  sheet: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, maxHeight: '90%', paddingTop: 10, ...contentBounds },
   grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(140,150,160,0.4)', alignSelf: 'center', marginBottom: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16 },
   title: { fontSize: 18, fontWeight: '800', flex: 1, marginRight: 12 },
@@ -166,7 +169,7 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, borderWidth: 1, paddingHorizontal: 14, height: 50 },
   fieldValue: { fontSize: 15 },
   fieldIcon: { marginLeft: 10 },
-  notes: { fontSize: 14, lineHeight: 20, borderRadius: RADIUS.md, borderWidth: 1, padding: 14 },
+  notes: { borderRadius: RADIUS.md, borderWidth: 1, padding: 14 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: RADIUS.md },
   actionText: { fontSize: 14, fontWeight: '700' },

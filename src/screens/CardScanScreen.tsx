@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
+import RNFS from 'react-native-fs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -34,8 +35,10 @@ export default function CardScanScreen({ visible, onClose, onScanned }: CardScan
     if (!cameraRef.current || capturing) return;
     setCapturing(true);
     setError('');
+    let photoPath: string | null = null;
     try {
       const photo = await cameraRef.current.takePhoto({ flash: 'off' });
+      photoPath = photo.path;
       const result = await TextRecognition.recognize(`file://${photo.path}`);
       const parsed = parseCardText(result.text);
       if (!parsed.cardNumber) {
@@ -47,6 +50,10 @@ export default function CardScanScreen({ visible, onClose, onScanned }: CardScan
     } catch (e) {
       setError('Scan failed. Try again or enter details manually.');
       setCapturing(false);
+    } finally {
+      // The photo only ever exists to feed the OCR pass — nothing keeps it around
+      // afterward, on success or failure.
+      if (photoPath) RNFS.unlink(photoPath).catch(() => {});
     }
   }, [capturing, onScanned]);
 

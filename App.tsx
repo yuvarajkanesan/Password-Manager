@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { View, StatusBar, AppState, AppStateStatus, StyleSheet, Alert, BackHandler } from 'react-native';
+import { View, StatusBar, AppState, AppStateStatus, StyleSheet } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { VaultProvider, useVault } from './src/contexts/VaultContext';
@@ -10,6 +10,7 @@ import VaultListScreen from './src/screens/VaultListScreen';
 import CardsListScreen from './src/screens/CardsListScreen';
 import GeneratorScreen from './src/screens/GeneratorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import SecurityBlockScreen, { SecurityBlockReason } from './src/screens/SecurityBlockScreen';
 import { getAutoLockMinutes } from './src/storage/vaultStorage';
 import { isDeviceRooted, isDebuggingEnabled } from './src/native/security';
 
@@ -65,37 +66,20 @@ function UnlockedApp() {
 function AppContent() {
   const { colors } = useTheme();
   const { state } = useVault();
-  const [securityCleared, setSecurityCleared] = useState(false);
+  const [securityBlock, setSecurityBlock] = useState<SecurityBlockReason | null>(null);
+  const [securityChecked, setSecurityChecked] = useState(false);
 
   useEffect(() => {
     (async () => {
       const [rooted, debugging] = await Promise.all([isDeviceRooted(), isDebuggingEnabled()]);
-
-      if (rooted) {
-        Alert.alert(
-          '⚠️ Security Warning',
-          'SecureVault cannot run on a rooted device.',
-          [{ text: 'Exit', onPress: () => BackHandler.exitApp() }],
-          { cancelable: false },
-        );
-        return;
-      }
-
-      if (debugging) {
-        Alert.alert(
-          '⚠️ Security Warning',
-          'This build cannot run with developer tools (USB debugging) enabled.',
-          [{ text: 'Exit', onPress: () => BackHandler.exitApp() }],
-          { cancelable: false },
-        );
-        return;
-      }
-
-      setSecurityCleared(true);
+      if (rooted) setSecurityBlock('rooted');
+      else if (debugging) setSecurityBlock('debugging');
+      setSecurityChecked(true);
     })();
   }, []);
 
-  if (!securityCleared) return null;
+  if (!securityChecked) return null;
+  if (securityBlock) return <SecurityBlockScreen reason={securityBlock} />;
 
   return (
     <>

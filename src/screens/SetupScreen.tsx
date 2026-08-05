@@ -8,7 +8,9 @@ import { useVault } from '../contexts/VaultContext';
 import TextField from '../components/TextField';
 import Button from '../components/Button';
 import StrengthMeter from '../components/StrengthMeter';
-import { RADIUS } from '../constants/theme';
+import LegalDocumentModal from './LegalDocumentModal';
+import { PRIVACY_POLICY, TERMS_AND_CONDITIONS } from '../constants/legalContent';
+import { RADIUS, contentBounds } from '../constants/theme';
 
 export default function SetupScreen() {
   const { colors } = useTheme();
@@ -20,6 +22,8 @@ export default function SetupScreen() {
   const [busy, setBusy] = useState(false);
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [restoreError, setRestoreError] = useState('');
+  const [privacyPolicyVisible, setPrivacyPolicyVisible] = useState(false);
+  const [termsVisible, setTermsVisible] = useState(false);
 
   const canSubmit = password.length >= 8 && password === confirm;
 
@@ -101,8 +105,23 @@ export default function SetupScreen() {
             </Text>
           </TouchableOpacity>
           {restoreError ? <Text style={[styles.restoreError, { color: colors.danger }]}>{restoreError}</Text> : null}
+
+          <Text style={[styles.legalText, { color: colors.textSecondary }]}>
+            By continuing you agree to the{' '}
+            <Text style={[styles.legalLink, { color: colors.primaryLight }]} onPress={() => setTermsVisible(true)}>
+              Terms & Conditions
+            </Text>{' '}
+            and{' '}
+            <Text style={[styles.legalLink, { color: colors.primaryLight }]} onPress={() => setPrivacyPolicyVisible(true)}>
+              Privacy Policy
+            </Text>
+            .
+          </Text>
         </View>
       </ScrollView>
+
+      <LegalDocumentModal visible={privacyPolicyVisible} document={PRIVACY_POLICY} onClose={() => setPrivacyPolicyVisible(false)} />
+      <LegalDocumentModal visible={termsVisible} document={TERMS_AND_CONDITIONS} onClose={() => setTermsVisible(false)} />
     </KeyboardAvoidingView>
   );
 }
@@ -121,7 +140,7 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: 24, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
   heroSubtitle: { fontSize: 13.5, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
   body: { flex: 1, marginTop: -24 },
-  bodyContent: { padding: 20, paddingBottom: 40 },
+  bodyContent: { padding: 20, paddingBottom: 40, ...contentBounds },
   card: { borderRadius: RADIUS.lg, padding: 20 },
   notice: { flexDirection: 'row', gap: 8, padding: 12, borderRadius: RADIUS.md, marginBottom: 20, marginTop: 4 },
   noticeText: { flex: 1, fontSize: 12, lineHeight: 17 },
@@ -129,4 +148,6 @@ const styles = StyleSheet.create({
   restoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 18 },
   restoreText: { fontSize: 13, fontWeight: '700' },
   restoreError: { fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+  legalText: { fontSize: 11.5, textAlign: 'center', marginTop: 20, lineHeight: 17 },
+  legalLink: { fontWeight: '700', textDecorationLine: 'underline' },
 });

@@ -9,7 +9,7 @@ import EmptyState from '../components/EmptyState';
 import CardDetailModal from './CardDetailModal';
 import AddEditCardModal from './AddEditCardModal';
 import { last4 } from '../utils/cardUtils';
-import { RADIUS, elevation } from '../constants/theme';
+import { RADIUS, elevation, contentBounds } from '../constants/theme';
 import type { CardEntry } from '../types/vault';
 
 export default function CardsListScreen() {
@@ -33,18 +33,20 @@ export default function CardsListScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient colors={colors.headerGradient} style={[styles.hero, { paddingTop: insets.top + 18 }]}>
-        <Text style={styles.heroTitle}>Cards</Text>
-        <Text style={styles.heroSubtitle}>Credit & debit cards</Text>
-        <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-          <Ionicons name="search" size={17} color="rgba(255,255,255,0.75)" />
-          <View style={{ flex: 1 }}>
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search cards"
-              placeholderTextColor="rgba(255,255,255,0.65)"
-              style={styles.searchInput}
-            />
+        <View style={contentBounds}>
+          <Text style={styles.heroTitle}>Cards</Text>
+          <Text style={styles.heroSubtitle}>Credit & debit cards</Text>
+          <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
+            <Ionicons name="search" size={17} color="rgba(255,255,255,0.75)" />
+            <View style={{ flex: 1 }}>
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search cards"
+                placeholderTextColor="rgba(255,255,255,0.65)"
+                style={styles.searchInput}
+              />
+            </View>
           </View>
         </View>
       </LinearGradient>
@@ -117,7 +119,7 @@ const styles = StyleSheet.create({
   heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3, marginBottom: 16 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: RADIUS.md, paddingHorizontal: 14, height: 44 },
   searchInput: { color: '#fff', fontSize: 14.5, height: '100%' },
-  listContent: { padding: 16, paddingBottom: 100 },
+  listContent: { padding: 16, paddingBottom: 100, ...contentBounds },
   row: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: RADIUS.md, marginBottom: 10 },
   iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   rowText: { flex: 1, marginLeft: 12 },

@@ -10,7 +10,7 @@ import Button from '../components/Button';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { getBiometricEnabled } from '../storage/vaultStorage';
 import { getBiometricPassword, hasBiometricPassword } from '../storage/biometricStore';
-import { RADIUS } from '../constants/theme';
+import { RADIUS, contentBounds } from '../constants/theme';
 
 export default function UnlockScreen() {
   const { colors } = useTheme();
@@ -23,16 +23,35 @@ export default function UnlockScreen() {
   const [resetVisible, setResetVisible] = useState(false);
   const triedAutoBiometric = useRef(false);
 
+  const biometricInFlight = useRef(false);
+
   const tryBiometric = useCallback(async () => {
-    const enabled = await getBiometricEnabled();
-    const stored = await hasBiometricPassword();
-    if (!enabled || !stored) return;
-    const pass = await getBiometricPassword();
-    if (!pass) return;
-    setBusy(true);
-    const ok = await unlock(pass);
-    setBusy(false);
-    if (!ok) setError('Stored biometric credential is out of date. Enter your master password.');
+    // Guards against the manual "Use biometric unlock" link being tapped while the
+    // auto-trigger's prompt is still in flight — Android silently drops a second
+    // concurrent biometric request, which otherwise looked exactly like "nothing
+    // happens" when tapped at the wrong moment.
+    if (biometricInFlight.current) return;
+    biometricInFlight.current = true;
+    setError('');
+    try {
+      const enabled = await getBiometricEnabled();
+      const stored = await hasBiometricPassword();
+      if (!enabled || !stored) return;
+      const pass = await getBiometricPassword();
+      if (!pass) {
+        setError('Biometric unlock unavailable right now. Enter your master password.');
+        return;
+      }
+      setBusy(true);
+      const ok = await unlock(pass);
+      if (!ok) setError('Stored biometric credential is out of date. Enter your master password.');
+    } finally {
+      // try/finally (not the old bare setBusy(false) after the await) — if unlock()
+      // ever throws instead of just returning false, busy stays stuck true forever
+      // and the button becomes permanently unresponsive with disabled={busy}.
+      biometricInFlight.current = false;
+      setBusy(false);
+    }
   }, [unlock]);
 
   useEffect(() => {
@@ -51,9 +70,12 @@ export default function UnlockScreen() {
     if (!password) return;
     setError('');
     setBusy(true);
-    const ok = await unlock(password);
-    setBusy(false);
-    if (!ok) setError('Incorrect master password.');
+    try {
+      const ok = await unlock(password);
+      if (!ok) setError('Incorrect master password.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -124,7 +146,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: { fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
   heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4, textAlign: 'center', paddingHorizontal: 30 },
-  body: { flex: 1, marginTop: -24, paddingHorizontal: 20 },
+  body: { flex: 1, marginTop: -24, paddingHorizontal: 20, ...contentBounds },
   card: { borderRadius: RADIUS.lg, padding: 20 },
   submit: { marginTop: 4 },
   bioRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 },

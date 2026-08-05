@@ -8,7 +8,7 @@ import TextField from '../components/TextField';
 import Button from '../components/Button';
 import StrengthMeter from '../components/StrengthMeter';
 import { generatePassword } from '../utils/passwordUtils';
-import { RADIUS } from '../constants/theme';
+import { RADIUS, contentBounds } from '../constants/theme';
 import type { VaultEntry, EntryCategory } from '../types/vault';
 
 type AddEditEntryModalProps = {
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 16.5, fontWeight: '800' },
-  content: { padding: 20, paddingBottom: 50 },
+  content: { padding: 20, paddingBottom: 50, ...contentBounds },
   segment: { flexDirection: 'row', borderRadius: RADIUS.md, padding: 4, marginBottom: 20 },
   segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: RADIUS.sm, alignItems: 'center' },
   segmentLabel: { fontSize: 13.5, fontWeight: '700' },

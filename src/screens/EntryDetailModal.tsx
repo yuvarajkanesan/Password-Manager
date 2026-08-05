@@ -6,8 +6,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useVault } from '../contexts/VaultContext';
 import EntryAvatar from '../components/EntryAvatar';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ExpandableText from '../components/ExpandableText';
 import { copyWithAutoClear, copyPlain } from '../utils/clipboard';
-import { RADIUS, elevation } from '../constants/theme';
+import { RADIUS, elevation, contentBounds } from '../constants/theme';
 import type { VaultEntry } from '../types/vault';
 
 type EntryDetailModalProps = {
@@ -103,9 +104,11 @@ export default function EntryDetailModal({ visible, entry, onClose, onEdit }: En
             {entry.notes ? (
               <View style={styles.fieldBlock}>
                 <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Notes</Text>
-                <Text style={[styles.notes, { color: colors.text, backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
-                  {entry.notes}
-                </Text>
+                <ExpandableText
+                  text={entry.notes}
+                  boxStyle={[styles.notes, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                  textStyle={{ color: colors.text, fontSize: 14, lineHeight: 20 }}
+                />
               </View>
             ) : null}
 
@@ -160,7 +163,7 @@ function FieldRow({ label, value, onCopy, onPress, copied }: { label: string; va
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, maxHeight: '88%', paddingTop: 10 },
+  sheet: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, maxHeight: '88%', paddingTop: 10, ...contentBounds },
   grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(140,150,160,0.4)', alignSelf: 'center', marginBottom: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16 },
   title: { fontSize: 18, fontWeight: '800' },
@@ -172,7 +175,7 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, borderWidth: 1, paddingHorizontal: 14, height: 50 },
   fieldValue: { fontSize: 15 },
   fieldIcon: { marginLeft: 10 },
-  notes: { fontSize: 14, lineHeight: 20, borderRadius: RADIUS.md, borderWidth: 1, padding: 14 },
+  notes: { borderRadius: RADIUS.md, borderWidth: 1, padding: 14 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: RADIUS.md },
   actionText: { fontSize: 14, fontWeight: '700' },

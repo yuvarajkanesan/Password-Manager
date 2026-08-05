@@ -9,7 +9,7 @@ import EntryAvatar from '../components/EntryAvatar';
 import EmptyState from '../components/EmptyState';
 import EntryDetailModal from './EntryDetailModal';
 import AddEditEntryModal from './AddEditEntryModal';
-import { RADIUS, elevation } from '../constants/theme';
+import { RADIUS, elevation, contentBounds } from '../constants/theme';
 import type { EntryCategory, VaultEntry } from '../types/vault';
 
 type VaultListScreenProps = {
@@ -40,12 +40,14 @@ export default function VaultListScreen({ category, title, subtitle }: VaultList
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient colors={colors.headerGradient} style={[styles.hero, { paddingTop: insets.top + 18 }]}>
-        <Text style={styles.heroTitle}>{title}</Text>
-        <Text style={styles.heroSubtitle}>{subtitle}</Text>
-        <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-          <Ionicons name="search" size={17} color="rgba(255,255,255,0.75)" />
-          <View style={{ flex: 1 }}>
-            <SearchInput value={query} onChangeText={setQuery} placeholder={`Search ${title.toLowerCase()}`} />
+        <View style={contentBounds}>
+          <Text style={styles.heroTitle}>{title}</Text>
+          <Text style={styles.heroSubtitle}>{subtitle}</Text>
+          <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
+            <Ionicons name="search" size={17} color="rgba(255,255,255,0.75)" />
+            <View style={{ flex: 1 }}>
+              <SearchInput value={query} onChangeText={setQuery} placeholder={`Search ${title.toLowerCase()}`} />
+            </View>
           </View>
         </View>
       </LinearGradient>
@@ -133,7 +135,7 @@ const styles = StyleSheet.create({
   heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3, marginBottom: 16 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: RADIUS.md, paddingHorizontal: 14, height: 44 },
   searchInput: { color: '#fff', fontSize: 14.5, height: '100%' },
-  listContent: { padding: 16, paddingBottom: 100 },
+  listContent: { padding: 16, paddingBottom: 100, ...contentBounds },
   row: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: RADIUS.md, marginBottom: 10 },
   rowText: { flex: 1, marginLeft: 12 },
   rowTitle: { fontSize: 15, fontWeight: '700' },

@@ -8,9 +8,22 @@ import { useVault } from '../contexts/VaultContext';
 import TextField from '../components/TextField';
 import Button from '../components/Button';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { getBiometricEnabled, setAutoLockMinutes, getAutoLockMinutes } from '../storage/vaultStorage';
+import {
+  getBiometricEnabled,
+  setAutoLockMinutes,
+  getAutoLockMinutes,
+  getAutoBackupEnabled,
+  setAutoBackupEnabled,
+  getAutoBackupIntervalDays,
+  setAutoBackupIntervalDays,
+  getLastAutoBackupAt,
+  getManualBackupFileUri,
+} from '../storage/vaultStorage';
 import { isBiometrySupported } from '../storage/biometricStore';
-import { RADIUS, elevation } from '../constants/theme';
+import { forgetManualBackupLocation } from '../utils/backup';
+import LegalDocumentModal from './LegalDocumentModal';
+import { PRIVACY_POLICY, TERMS_AND_CONDITIONS } from '../constants/legalContent';
+import { RADIUS, elevation, contentBounds } from '../constants/theme';
 
 const THEME_OPTIONS: ThemeMode[] = ['System', 'Light', 'Dark'];
 const AUTO_LOCK_OPTIONS = [
@@ -20,6 +33,20 @@ const AUTO_LOCK_OPTIONS = [
   { label: '15 minutes', value: 15 },
   { label: 'Never', value: -1 },
 ];
+const AUTO_BACKUP_INTERVAL_OPTIONS = [
+  { label: 'Daily', value: 1 },
+  { label: 'Weekly', value: 7 },
+  { label: 'Monthly', value: 30 },
+];
+
+function formatLastBackup(timestamp: number): string {
+  if (!timestamp) return 'Never';
+  const diffMs = Date.now() - timestamp;
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return `${diffDays} days ago`;
+}
 
 export default function SettingsScreen() {
   const { colors, themeMode, setThemeMode } = useTheme();
@@ -37,11 +64,22 @@ export default function SettingsScreen() {
   const [restoreVisible, setRestoreVisible] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupNote, setBackupNote] = useState('');
+  const [autoBackupEnabled, setAutoBackupEnabledState] = useState(false);
+  const [autoBackupInterval, setAutoBackupInterval] = useState(7);
+  const [lastAutoBackup, setLastAutoBackup] = useState(0);
+  const [autoBackupIntervalPickerVisible, setAutoBackupIntervalPickerVisible] = useState(false);
+  const [manualBackupFileSet, setManualBackupFileSet] = useState(false);
+  const [privacyPolicyVisible, setPrivacyPolicyVisible] = useState(false);
+  const [termsVisible, setTermsVisible] = useState(false);
 
   const refresh = useCallback(async () => {
     setBiometricEnabled(await getBiometricEnabled());
     setBiometricSupported(await isBiometrySupported());
     setAutoLock(await getAutoLockMinutes());
+    setAutoBackupEnabledState(await getAutoBackupEnabled());
+    setAutoBackupInterval(await getAutoBackupIntervalDays());
+    setLastAutoBackup(await getLastAutoBackupAt());
+    setManualBackupFileSet((await getManualBackupFileUri()) !== null);
   }, []);
 
   useEffect(() => {
@@ -69,10 +107,17 @@ export default function SettingsScreen() {
     try {
       const saved = await exportBackup();
       setBackupNote(saved ? 'Backup saved.' : '');
+      if (saved) setManualBackupFileSet(true);
     } catch {
       setBackupNote('Could not save backup.');
     }
     setBackupBusy(false);
+  };
+
+  const handleForgetBackupLocation = async () => {
+    await forgetManualBackupLocation();
+    setManualBackupFileSet(false);
+    setBackupNote('Next export will ask where to save.');
   };
 
   const handleRestore = async () => {
@@ -89,11 +134,24 @@ export default function SettingsScreen() {
     setBackupBusy(false);
   };
 
+  const handleAutoBackupToggle = async (value: boolean) => {
+    await setAutoBackupEnabled(value);
+    setAutoBackupEnabledState(value);
+  };
+
+  const handleAutoBackupIntervalSelect = async (days: number) => {
+    await setAutoBackupIntervalDays(days);
+    setAutoBackupInterval(days);
+    setAutoBackupIntervalPickerVisible(false);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient colors={colors.headerGradient} style={[styles.hero, { paddingTop: insets.top + 18 }]}>
-        <Text style={styles.heroTitle}>Settings</Text>
-        <Text style={styles.heroSubtitle}>Appearance, security & data</Text>
+        <View style={contentBounds}>
+          <Text style={styles.heroTitle}>Settings</Text>
+          <Text style={styles.heroSubtitle}>Appearance, security & data</Text>
+        </View>
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -165,11 +223,19 @@ export default function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: colors.text }]}>Export backup</Text>
               <Text style={[styles.rowHint, { color: colors.textSecondary }]}>
-                Save an encrypted copy of your vault to a file you choose — survives an uninstall.
+                {manualBackupFileSet
+                  ? 'Encrypted, overwrites the same file each time — survives an uninstall.'
+                  : 'Save an encrypted copy of your vault to a file you choose — survives an uninstall.'}
               </Text>
             </View>
             <Ionicons name="download-outline" size={18} color={colors.tabInactive} />
           </TouchableOpacity>
+
+          {manualBackupFileSet ? (
+            <TouchableOpacity onPress={handleForgetBackupLocation} disabled={backupBusy}>
+              <Text style={[styles.linkText, { color: colors.primaryLight }]}>Use a different file next time</Text>
+            </TouchableOpacity>
+          ) : null}
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
@@ -182,6 +248,63 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           {backupNote ? <Text style={[styles.backupNote, { color: colors.textSecondary }]}>{backupNote}</Text> : null}
+        </View>
+
+        <SectionLabel text="Scheduled backup" />
+        <View style={[styles.card, { backgroundColor: colors.card }, elevation(colors.shadow, 'sm')]}>
+          <View style={styles.rowBetween}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Auto-backup</Text>
+              <Text style={[styles.rowHint, { color: colors.textSecondary }]}>
+                Saved to this app's private storage — no other app can read it. Checked each time you unlock. Won't
+                survive an uninstall, so it doesn't replace Export backup above.
+              </Text>
+            </View>
+            <Switch
+              value={autoBackupEnabled}
+              onValueChange={handleAutoBackupToggle}
+              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              thumbColor={colors.white}
+            />
+          </View>
+
+          {autoBackupEnabled ? (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              <TouchableOpacity style={styles.rowBetween} onPress={() => setAutoBackupIntervalPickerVisible(true)}>
+                <Text style={[styles.rowLabel, { color: colors.text }]}>Frequency</Text>
+                <View style={styles.valueRow}>
+                  <Text style={[styles.rowValue, { color: colors.textSecondary }]}>
+                    {AUTO_BACKUP_INTERVAL_OPTIONS.find(o => o.value === autoBackupInterval)?.label ?? 'Weekly'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.tabInactive} />
+                </View>
+              </TouchableOpacity>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              <View style={styles.rowBetween}>
+                <Text style={[styles.rowLabel, { color: colors.text }]}>Last backup</Text>
+                <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{formatLastBackup(lastAutoBackup)}</Text>
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        <SectionLabel text="Legal" />
+        <View style={[styles.card, { backgroundColor: colors.card }, elevation(colors.shadow, 'sm')]}>
+          <TouchableOpacity style={styles.rowBetween} onPress={() => setPrivacyPolicyVisible(true)}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Privacy Policy</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.tabInactive} />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <TouchableOpacity style={styles.rowBetween} onPress={() => setTermsVisible(true)}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Terms & Conditions</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.tabInactive} />
+          </TouchableOpacity>
         </View>
 
         <SectionLabel text="Danger zone" />
@@ -217,6 +340,18 @@ export default function SettingsScreen() {
         onSelect={handleAutoLockSelect}
         onClose={() => setAutoLockPickerVisible(false)}
       />
+
+      <OptionPicker
+        visible={autoBackupIntervalPickerVisible}
+        title="Auto-backup frequency"
+        options={AUTO_BACKUP_INTERVAL_OPTIONS}
+        current={autoBackupInterval}
+        onSelect={handleAutoBackupIntervalSelect}
+        onClose={() => setAutoBackupIntervalPickerVisible(false)}
+      />
+
+      <LegalDocumentModal visible={privacyPolicyVisible} document={PRIVACY_POLICY} onClose={() => setPrivacyPolicyVisible(false)} />
+      <LegalDocumentModal visible={termsVisible} document={TERMS_AND_CONDITIONS} onClose={() => setTermsVisible(false)} />
 
       <ConfirmDialog
         visible={restoreVisible}
@@ -390,17 +525,51 @@ function AutoLockPicker({
   );
 }
 
+function OptionPicker({
+  visible,
+  title,
+  options,
+  current,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  options: { label: string; value: number }[];
+  current: number;
+  onSelect: (v: number) => void;
+  onClose: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={[styles.overlay, { backgroundColor: colors.overlay }]} onPress={onClose}>
+        <Pressable style={[styles.modalCard, { backgroundColor: colors.card }, elevation(colors.shadow, 'lg')]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>{title}</Text>
+          {options.map(opt => (
+            <TouchableOpacity key={opt.value} style={styles.pickerRow} onPress={() => onSelect(opt.value)}>
+              <Text style={[styles.pickerLabel, { color: colors.text }]}>{opt.label}</Text>
+              {current === opt.value ? <Ionicons name="checkmark" size={18} color={colors.primaryLight} /> : null}
+            </TouchableOpacity>
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   heroTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
   heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
-  body: { padding: 20, paddingBottom: 50 },
+  body: { padding: 20, paddingBottom: 50, ...contentBounds },
   sectionLabel: { fontSize: 11.5, fontWeight: '800', letterSpacing: 0.6, marginBottom: 8, marginTop: 18 },
   card: { borderRadius: RADIUS.lg, paddingHorizontal: 16 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 },
   rowLabel: { fontSize: 14.5, fontWeight: '600' },
   rowHint: { fontSize: 11.5, marginTop: 2 },
   backupNote: { fontSize: 12, fontWeight: '600', paddingVertical: 12 },
+  linkText: { fontSize: 11.5, fontWeight: '700', paddingBottom: 12, textDecorationLine: 'underline' },
   rowValue: { fontSize: 13.5 },
   valueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   divider: { height: 1 },
