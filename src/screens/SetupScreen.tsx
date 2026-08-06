@@ -10,7 +10,10 @@ import Button from '../components/Button';
 import StrengthMeter from '../components/StrengthMeter';
 import LegalDocumentModal from './LegalDocumentModal';
 import { PRIVACY_POLICY, TERMS_AND_CONDITIONS } from '../constants/legalContent';
+import { setDisguiseCode } from '../storage/vaultStorage';
 import { RADIUS, contentBounds } from '../constants/theme';
+
+const MIN_DISGUISE_CODE_LENGTH = 8;
 
 export default function SetupScreen() {
   const { colors } = useTheme();
@@ -18,14 +21,16 @@ export default function SetupScreen() {
   const insets = useSafeAreaInsets();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [disguiseCode, setDisguiseCodeInput] = useState('');
   const [error, setError] = useState('');
+  const [disguiseError, setDisguiseError] = useState('');
   const [busy, setBusy] = useState(false);
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [restoreError, setRestoreError] = useState('');
   const [privacyPolicyVisible, setPrivacyPolicyVisible] = useState(false);
   const [termsVisible, setTermsVisible] = useState(false);
 
-  const canSubmit = password.length >= 8 && password === confirm;
+  const canSubmit = password.length >= 8 && password === confirm && disguiseCode.length >= MIN_DISGUISE_CODE_LENGTH;
 
   const handleCreate = async () => {
     if (password.length < 8) {
@@ -36,9 +41,15 @@ export default function SetupScreen() {
       setError("Passwords don't match.");
       return;
     }
+    if (disguiseCode.length < MIN_DISGUISE_CODE_LENGTH) {
+      setDisguiseError(`Use at least ${MIN_DISGUISE_CODE_LENGTH} digits.`);
+      return;
+    }
     setError('');
+    setDisguiseError('');
     setBusy(true);
     try {
+      await setDisguiseCode(disguiseCode);
       await setupVault(password);
     } finally {
       setBusy(false);
@@ -89,6 +100,24 @@ export default function SetupScreen() {
             autoCapitalize="none"
             error={error}
           />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <Text style={[styles.sectionLabel, { color: colors.text }]}>Disguise code</Text>
+          <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
+            SecureVault hides on your home screen as a Calculator. Choose an 8+ digit code — type it into the
+            calculator and press "=" any time to reveal your vault.
+          </Text>
+          <TextField
+            label="Calculator reveal code"
+            icon="apps-outline"
+            isPassword
+            placeholder="e.g. 19570824"
+            value={disguiseCode}
+            onChangeText={v => setDisguiseCodeInput(v.replace(/\D/g, '').slice(0, 12))}
+            keyboardType="number-pad"
+            error={disguiseError}
+          />
+
           <View style={[styles.notice, { backgroundColor: colors.goldSoft }]}>
             <Ionicons name="information-circle-outline" size={16} color={colors.gold} />
             <Text style={[styles.noticeText, { color: colors.textSecondary }]}>
@@ -142,6 +171,9 @@ const styles = StyleSheet.create({
   body: { flex: 1, marginTop: -24 },
   bodyContent: { padding: 20, paddingBottom: 40, ...contentBounds },
   card: { borderRadius: RADIUS.lg, padding: 20 },
+  divider: { height: 1, marginVertical: 18 },
+  sectionLabel: { fontSize: 14.5, fontWeight: '700', marginBottom: 6 },
+  sectionHint: { fontSize: 12, lineHeight: 17, marginBottom: 14 },
   notice: { flexDirection: 'row', gap: 8, padding: 12, borderRadius: RADIUS.md, marginBottom: 20, marginTop: 4 },
   noticeText: { flex: 1, fontSize: 12, lineHeight: 17 },
   submit: {},

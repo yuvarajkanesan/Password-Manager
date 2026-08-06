@@ -11,7 +11,8 @@ import CardsListScreen from './src/screens/CardsListScreen';
 import GeneratorScreen from './src/screens/GeneratorScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import SecurityBlockScreen, { SecurityBlockReason } from './src/screens/SecurityBlockScreen';
-import { getAutoLockMinutes } from './src/storage/vaultStorage';
+import CalculatorScreen from './src/screens/CalculatorScreen';
+import { getAutoLockMinutes, hasDisguiseCode } from './src/storage/vaultStorage';
 import { isDeviceRooted, isDebuggingEnabled } from './src/native/security';
 
 const TAB_ROUTES = [
@@ -94,12 +95,61 @@ function AppContent() {
   );
 }
 
+// The app disguises itself as a Calculator (see app icon/name + CalculatorScreen).
+// Typing the code chosen during first-run setup reveals SecureVault; anyone else just
+// gets a working calculator. Exceptions where the disguise doesn't apply:
+//  - No vault yet (fresh install) — there's nothing to disguise, so onboarding shows
+//    directly and the user sets their disguise code as part of it.
+//  - Immediately after finishing that onboarding — skip straight into the app rather
+//    than re-challenging with the code they just chose seconds ago.
+//  - An existing vault from before this feature existed, with no disguise code ever
+//    set — enforcing the gate here would permanently lock that vault out, since no
+//    code could ever match. Falls back to the old (no-disguise) behavior until the
+//    user opts in via Settings > Change disguise code.
+function DisguiseGate() {
+  const { state } = useVault();
+  const [revealed, setRevealed] = useState(false);
+  const [disguiseConfigured, setDisguiseConfigured] = useState<boolean | null>(null);
+  const appState = useRef(AppState.currentState);
+  const prevVaultState = useRef(state);
+
+  useEffect(() => {
+    if (prevVaultState.current === 'no-vault' && state !== 'no-vault') {
+      setRevealed(true);
+    }
+    prevVaultState.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    if (state === 'locked' || state === 'unlocked') {
+      hasDisguiseCode().then(setDisguiseConfigured);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (appState.current === 'active' && next.match(/inactive|background/)) {
+        setRevealed(false);
+      }
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, []);
+
+  if (state === 'loading') return null;
+  if (state === 'no-vault') return <AppContent />;
+  if (disguiseConfigured === null) return null;
+  if (!disguiseConfigured) return <AppContent />;
+  if (!revealed) return <CalculatorScreen onReveal={() => setRevealed(true)} />;
+  return <AppContent />;
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
         <VaultProvider>
-          <AppContent />
+          <DisguiseGate />
         </VaultProvider>
       </ThemeProvider>
     </SafeAreaProvider>

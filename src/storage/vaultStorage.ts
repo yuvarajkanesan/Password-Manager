@@ -8,6 +8,7 @@ const AUTO_BACKUP_ENABLED_KEY = 'auto_backup_enabled';
 const AUTO_BACKUP_INTERVAL_KEY = 'auto_backup_interval_days';
 const AUTO_BACKUP_LAST_RUN_KEY = 'auto_backup_last_run_at';
 const MANUAL_BACKUP_FILE_KEY = 'manual_backup_file_uri';
+const DISGUISE_CODE_KEY = 'disguise_reveal_code';
 
 export async function saveEncryptedBlob(blob: EncryptedBlob): Promise<void> {
   await AsyncStorage.setItem(BLOB_KEY, JSON.stringify(blob));
@@ -90,4 +91,23 @@ export async function setManualBackupFileUri(uri: string | null): Promise<void> 
 
 export async function getManualBackupFileUri(): Promise<string | null> {
   return AsyncStorage.getItem(MANUAL_BACKUP_FILE_KEY);
+}
+
+// The calculator disguise's reveal code (digits typed before "="), chosen by the user
+// during first-run setup — never a shipped default, since a predictable default is
+// trivially discoverable in a decompiled APK. Deliberately not part of wipeVault(),
+// since it's an app-identity setting rather than vault content; erasing the vault
+// shouldn't also lock you out of the disguise you set up.
+export async function setDisguiseCode(code: string): Promise<void> {
+  await AsyncStorage.setItem(DISGUISE_CODE_KEY, code);
+}
+
+// Null means no code has ever been set — the calculator gate should let that case
+// through as "not yet configured" rather than compare against anything.
+export async function getDisguiseCode(): Promise<string | null> {
+  return AsyncStorage.getItem(DISGUISE_CODE_KEY);
+}
+
+export async function hasDisguiseCode(): Promise<boolean> {
+  return (await getDisguiseCode()) !== null;
 }

@@ -18,6 +18,7 @@ import {
   setAutoBackupIntervalDays,
   getLastAutoBackupAt,
   getManualBackupFileUri,
+  setDisguiseCode,
 } from '../storage/vaultStorage';
 import { isBiometrySupported } from '../storage/biometricStore';
 import { forgetManualBackupLocation } from '../utils/backup';
@@ -71,6 +72,7 @@ export default function SettingsScreen() {
   const [manualBackupFileSet, setManualBackupFileSet] = useState(false);
   const [privacyPolicyVisible, setPrivacyPolicyVisible] = useState(false);
   const [termsVisible, setTermsVisible] = useState(false);
+  const [changeDisguiseVisible, setChangeDisguiseVisible] = useState(false);
 
   const refresh = useCallback(async () => {
     setBiometricEnabled(await getBiometricEnabled());
@@ -211,6 +213,16 @@ export default function SettingsScreen() {
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
+          <TouchableOpacity style={styles.rowBetween} onPress={() => setChangeDisguiseVisible(true)}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Change disguise code</Text>
+              <Text style={[styles.rowHint, { color: colors.textSecondary }]}>The code you type into the Calculator to reveal this app</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.tabInactive} />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
           <TouchableOpacity style={styles.rowBetween} onPress={() => setLockVisible(true)}>
             <Text style={[styles.rowLabel, { color: colors.text }]}>Lock now</Text>
             <Ionicons name="lock-closed-outline" size={16} color={colors.tabInactive} />
@@ -323,6 +335,8 @@ export default function SettingsScreen() {
         onClose={() => setChangePwVisible(false)}
         onSubmit={changeMasterPassword}
       />
+
+      <ChangeDisguiseCodeModal visible={changeDisguiseVisible} onClose={() => setChangeDisguiseVisible(false)} />
 
       <EnableBiometricModal
         visible={enableBioVisible}
@@ -448,6 +462,72 @@ function ChangePasswordModal({
           <TextField label="Current password" isPassword value={oldPw} onChangeText={setOldPw} autoCapitalize="none" />
           <TextField label="New password" isPassword value={newPw} onChangeText={setNewPw} autoCapitalize="none" />
           <TextField label="Confirm new password" isPassword value={confirmPw} onChangeText={setConfirmPw} autoCapitalize="none" error={error} />
+          <View style={styles.modalActions}>
+            <Button label="Cancel" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
+            <Button label="Update" onPress={handleSubmit} loading={busy} style={{ flex: 1 }} />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const MIN_DISGUISE_CODE_LENGTH = 8;
+
+function ChangeDisguiseCodeModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const [code, setCode] = useState('');
+  const [confirmCode, setConfirmCode] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setCode('');
+      setConfirmCode('');
+      setError('');
+    }
+  }, [visible]);
+
+  const handleSubmit = async () => {
+    if (code.length < MIN_DISGUISE_CODE_LENGTH) {
+      setError(`Use at least ${MIN_DISGUISE_CODE_LENGTH} digits.`);
+      return;
+    }
+    if (code !== confirmCode) {
+      setError("Codes don't match.");
+      return;
+    }
+    setBusy(true);
+    await setDisguiseCode(code);
+    setBusy(false);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={[styles.overlay, { backgroundColor: colors.overlay }]} onPress={onClose}>
+        <Pressable style={[styles.modalCard, { backgroundColor: colors.card }, elevation(colors.shadow, 'lg')]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Change disguise code</Text>
+          <Text style={[styles.modalHint, { color: colors.textSecondary }]}>
+            Type this into the Calculator and press "=" to reveal SecureVault.
+          </Text>
+          <TextField
+            label="New code"
+            isPassword
+            placeholder={`At least ${MIN_DISGUISE_CODE_LENGTH} digits`}
+            value={code}
+            onChangeText={v => setCode(v.replace(/\D/g, '').slice(0, 12))}
+            keyboardType="number-pad"
+          />
+          <TextField
+            label="Confirm new code"
+            isPassword
+            value={confirmCode}
+            onChangeText={v => setConfirmCode(v.replace(/\D/g, '').slice(0, 12))}
+            keyboardType="number-pad"
+            error={error}
+          />
           <View style={styles.modalActions}>
             <Button label="Cancel" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
             <Button label="Update" onPress={handleSubmit} loading={busy} style={{ flex: 1 }} />
