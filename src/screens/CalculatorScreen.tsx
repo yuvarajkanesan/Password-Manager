@@ -1,8 +1,27 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getDisguiseCode } from '../storage/vaultStorage';
+import { getDisguiseCode, setDisguiseCode, loadEncryptedBlob, getBiometricEnabled } from '../storage/vaultStorage';
+import { getBiometricPassword } from '../storage/biometricStore';
+import { deriveKey, decryptVault, WrongPasswordError } from '../crypto/vaultCrypto';
+
+const MIN_CODE_LENGTH = 8;
+
+// Recovery for a forgotten/mistyped reveal code: long-press "=" and prove you know the
+// master password. Read-only check — the vault itself is never modified or unlocked here.
+async function masterPasswordIsCorrect(password: string): Promise<boolean> {
+  const blob = await loadEncryptedBlob();
+  if (!blob) return false;
+  try {
+    const key = await deriveKey(password, blob.salt, blob.iterations);
+    await decryptVault(blob, key);
+    return true;
+  } catch (e) {
+    if (e instanceof WrongPasswordError) return false;
+    throw e;
+  }
+}
 
 // A genuinely working calculator — not a fake screen — that also happens to compare
 // the raw key sequence typed since the last clear/equals against a secret code. Typing
@@ -124,6 +143,60 @@ export default function CalculatorScreen({ onReveal }: { onReveal: () => void })
   const [errorFlash, setErrorFlash] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [resetVisible, setResetVisible] = useState(false);
+  const [resetPw, setResetPw] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [resetConfirm, setResetConfirm] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+
+  const openReset = () => {
+    setResetPw('');
+    setResetCode('');
+    setResetConfirm('');
+    setResetError('');
+    setResetVisible(true);
+  };
+
+  // Biometric/device-lock unlock hands back the stored master password, so this works
+  // even if the master password itself is forgotten.
+  const verifyWithBiometric = async () => {
+    setResetError('');
+    if (!(await getBiometricEnabled())) {
+      setResetError('Biometric unlock was never enabled for this vault.');
+      return;
+    }
+    const pw = await getBiometricPassword('Verify it\'s you');
+    if (!pw) {
+      setResetError('Biometric verification failed or was cancelled.');
+      return;
+    }
+    setResetPw(pw);
+  };
+
+  const submitReset = async () => {
+    if (resetCode.length < MIN_CODE_LENGTH) {
+      setResetError(`New code needs at least ${MIN_CODE_LENGTH} digits.`);
+      return;
+    }
+    if (resetCode !== resetConfirm) {
+      setResetError("Codes don't match.");
+      return;
+    }
+    setResetBusy(true);
+    try {
+      if (!(await masterPasswordIsCorrect(resetPw))) {
+        setResetError('Wrong master password.');
+        return;
+      }
+      await setDisguiseCode(resetCode);
+      setResetVisible(false);
+    } catch {
+      setResetError('Something went wrong. Try again.');
+    } finally {
+      setResetBusy(false);
+    }
+  };
 
   const display = expression === '' ? '0' : expression;
   const lastChar = expression[expression.length - 1];
@@ -305,11 +378,34 @@ export default function CalculatorScreen({ onReveal }: { onReveal: () => void })
               <Key label="%" onPress={pressPercent} variant="function" />
               <Key label="0" onPress={() => pressDigit('0')} />
               <Key label="." onPress={pressDecimal} />
-              <Key label="=" onPress={pressEquals} variant="operator" />
+              <Key label="=" onPress={pressEquals} onLongPress={openReset} variant="operator" />
             </Row>
           </View>
         </>
       )}
+
+      <Modal visible={resetVisible} transparent animationType="fade" onRequestClose={() => setResetVisible(false)}>
+        <ScrollView style={styles.modalOverlay} contentContainerStyle={styles.modalOverlayContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.modalCard}>
+            <Text style={styles.historyTitle}>Reset code</Text>
+            <TextInput style={styles.modalInput} placeholder="Master password" placeholderTextColor="rgba(255,255,255,0.35)" secureTextEntry autoCapitalize="none" value={resetPw} onChangeText={setResetPw} />
+            <TouchableOpacity onPress={verifyWithBiometric}>
+              <Text style={styles.historyClear}>{resetPw ? 'Master password filled ✓' : 'Forgot it? Use fingerprint / device lock'}</Text>
+            </TouchableOpacity>
+            <TextInput style={styles.modalInput} placeholder="New code (8+ digits)" placeholderTextColor="rgba(255,255,255,0.35)" secureTextEntry keyboardType="number-pad" value={resetCode} onChangeText={v => setResetCode(v.replace(/\D/g, '').slice(0, 12))} />
+            <TextInput style={styles.modalInput} placeholder="Confirm new code" placeholderTextColor="rgba(255,255,255,0.35)" secureTextEntry keyboardType="number-pad" value={resetConfirm} onChangeText={v => setResetConfirm(v.replace(/\D/g, '').slice(0, 12))} />
+            {resetError ? <Text style={styles.displayError}>{resetError}</Text> : null}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.key, styles.keyFunction, styles.modalBtn]} onPress={() => setResetVisible(false)}>
+                <Text style={styles.keyLabelFunction}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.key, styles.keyOperator, styles.modalBtn]} onPress={submitReset} disabled={resetBusy}>
+                <Text style={styles.keyLabelOperator}>{resetBusy ? '…' : 'Update'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </Modal>
     </View>
   );
 }
@@ -322,12 +418,14 @@ function Key({
   label,
   icon,
   onPress,
+  onLongPress,
   variant = 'digit',
   small,
 }: {
   label?: string;
   icon?: string;
   onPress: () => void;
+  onLongPress?: () => void;
   variant?: 'digit' | 'operator' | 'function';
   small?: boolean;
 }) {
@@ -335,7 +433,8 @@ function Key({
     <TouchableOpacity
       style={[styles.key, variant === 'operator' && styles.keyOperator, variant === 'function' && styles.keyFunction]}
       activeOpacity={0.65}
-      onPress={onPress}>
+      onPress={onPress}
+      onLongPress={onLongPress}>
       {icon ? (
         <Ionicons name={icon} size={24} color="#fff" />
       ) : (
@@ -373,11 +472,10 @@ const styles = StyleSheet.create({
   displayWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: SCREEN_BG, borderRadius: 18, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   display: { color: '#fff', fontSize: 48, fontWeight: '300', textAlign: 'right' },
   displayError: { color: '#F16569' },
-  grid: { gap: 12 },
-  row: { flexDirection: 'row', gap: 12 },
+  grid: { flex: 1.5, gap: 10 },
+  row: { flex: 1, flexDirection: "row", gap: 10 },
   key: {
     flex: 1,
-    aspectRatio: 1,
     borderRadius: 18,
     backgroundColor: KEY_BG,
     alignItems: 'center',
@@ -386,10 +484,16 @@ const styles = StyleSheet.create({
   },
   keyOperator: { backgroundColor: ACCENT, shadowColor: '#8A4200' },
   keyFunction: { backgroundColor: FUNCTION_BG },
-  keyLabel: { color: '#fff', fontSize: 26, fontWeight: '500' },
+  keyLabel: { includeFontPadding: false, color: '#fff', fontSize: 26, fontWeight: '500' },
   keyLabelSmall: { fontSize: 19 },
   keyLabelOperator: { color: '#1E2024', fontWeight: '700' },
   keyLabelFunction: { color: '#fff', fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalOverlayContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: BODY_BG, borderRadius: 18, padding: 20, gap: 12 },
+  modalInput: { backgroundColor: SCREEN_BG, color: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
+  modalActions: { flexDirection: 'row', gap: 12 },
+  modalBtn: { paddingVertical: 14 },
   historyPanel: { flex: 1, backgroundColor: SCREEN_BG, borderRadius: 18, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', overflow: 'hidden' },
   historyHeaderRow: {
     flexDirection: 'row',

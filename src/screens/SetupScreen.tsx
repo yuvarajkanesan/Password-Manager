@@ -22,6 +22,7 @@ export default function SetupScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [disguiseCode, setDisguiseCodeInput] = useState('');
+  const [disguiseConfirm, setDisguiseConfirm] = useState('');
   const [error, setError] = useState('');
   const [disguiseError, setDisguiseError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,7 +31,7 @@ export default function SetupScreen() {
   const [privacyPolicyVisible, setPrivacyPolicyVisible] = useState(false);
   const [termsVisible, setTermsVisible] = useState(false);
 
-  const canSubmit = password.length >= 8 && password === confirm && disguiseCode.length >= MIN_DISGUISE_CODE_LENGTH;
+  const canSubmit = password.length >= 8 && password === confirm && disguiseCode.length >= MIN_DISGUISE_CODE_LENGTH && disguiseCode === disguiseConfirm;
 
   const handleCreate = async () => {
     if (password.length < 8) {
@@ -43,6 +44,10 @@ export default function SetupScreen() {
     }
     if (disguiseCode.length < MIN_DISGUISE_CODE_LENGTH) {
       setDisguiseError(`Use at least ${MIN_DISGUISE_CODE_LENGTH} digits.`);
+      return;
+    }
+    if (disguiseCode !== disguiseConfirm) {
+      setDisguiseError("Codes don't match.");
       return;
     }
     setError('');
@@ -105,7 +110,7 @@ export default function SetupScreen() {
           <Text style={[styles.sectionLabel, { color: colors.text }]}>Disguise code</Text>
           <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
             SecureVault hides on your home screen as a Calculator. Choose an 8+ digit code — type it into the
-            calculator and press "=" any time to reveal your vault.
+            calculator and press "=" any time to reveal your vault. Write it down somewhere safe. If you forget it, long-press "=" on the calculator and verify with your master password or fingerprint to set a new one.
           </Text>
           <TextField
             label="Calculator reveal code"
@@ -114,6 +119,14 @@ export default function SetupScreen() {
             placeholder="e.g. 19570824"
             value={disguiseCode}
             onChangeText={v => setDisguiseCodeInput(v.replace(/\D/g, '').slice(0, 12))}
+            keyboardType="number-pad"
+          />
+          <TextField
+            label="Confirm reveal code"
+            icon="apps-outline"
+            isPassword
+            value={disguiseConfirm}
+            onChangeText={v => setDisguiseConfirm(v.replace(/\D/g, '').slice(0, 12))}
             keyboardType="number-pad"
             error={disguiseError}
           />
